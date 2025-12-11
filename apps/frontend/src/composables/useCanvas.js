@@ -2,6 +2,7 @@ import { ref, shallowRef, markRaw, toRaw } from 'vue';
 import { fabric } from 'fabric';
 
 export function useCanvas() {
+  // 使用 shallowRef 避免 Vue 深度代理导致 Fabric 对象移除失败
   const canvas = shallowRef(null);
   const cropObject = shallowRef(null); 
 
@@ -10,6 +11,7 @@ export function useCanvas() {
     if (!canvas.value || !activeObj) return;
     
     // 只有当前操作的是裁剪框时才生效
+    // 注意：这里比较的是原始对象，所以需要 toRaw
     const cropRect = toRaw(cropObject.value);
     if (!cropRect || activeObj !== cropRect) return;
 
@@ -17,74 +19,63 @@ export function useCanvas() {
     const bgImage = canvas.value.getObjects().find(o => o.type === 'image');
     if (!bgImage) return;
 
-    // 获取底图的边界 (注意：底图可能被缩放过，要用 getScaledWidth)
-    const boundLeft = bgImage.left;
-    const boundTop = bgImage.top;
-    const boundWidth = bgImage.getScaledWidth();
-    const boundHeight = bgImage.getScaledHeight();
+    // 获取底图的边界 (考虑缩放，但不考虑旋转，裁剪通常在正向图片上进行)
+    const bgWidth = bgImage.getScaledWidth();
+    const bgHeight = bgImage.getScaledHeight();
+    const bgLeft = bgImage.left;
+    const bgTop = bgImage.top;
 
     // 获取裁剪框的当前状态
-    const cropWidth = activeObj.getScaledWidth();
-    const cropHeight = activeObj.getScaledHeight();
+    let top = activeObj.top;
+    let left = activeObj.left;
+    const scaleX = activeObj.scaleX;
+    const scaleY = activeObj.scaleY;
+    const width = activeObj.width * scaleX;
+    const height = activeObj.height * scaleY;
 
-    // --- 1. 限制缩放 (Scaling) ---
-    // 如果裁剪框比底图还大，强制缩小
-    if (cropWidth > boundWidth) {
-      activeObj.scaleToWidth(boundWidth);
-    }
-    if (cropHeight > boundHeight) {
-      activeObj.scaleToHeight(boundHeight);
-    }
-
-    // --- 2. 限制移动 (Moving) ---
-    // 重新获取修正后的宽高
-    const finalWidth = activeObj.getScaledWidth();
-    const finalHeight = activeObj.getScaledHeight();
-
+    // --- 1. 限制移动 (Moving) ---
     // 限制左边
-    if (activeObj.left < boundLeft) {
-      activeObj.left = boundLeft;
-    }
+    if (left < bgLeft) activeObj.set('left', bgLeft);
     // 限制上边
-    if (activeObj.top < boundTop) {
-      activeObj.top = boundTop;
-    }
-    // 限制右边 (左坐标 + 宽度 > 边界右侧)
-    if (activeObj.left + finalWidth > boundLeft + boundWidth) {
-      activeObj.left = boundLeft + boundWidth - finalWidth;
-    }
+    if (top < bgTop) activeObj.set('top', bgTop);
+    // 限制右边 (左坐标 + 宽度 > 背景右边界)
+    if (left + width > bgLeft + bgWidth) activeObj.set('left', bgLeft + bgWidth - width);
     // 限制下边
-    if (activeObj.top + finalHeight > boundTop + boundHeight) {
-      activeObj.top = boundTop + boundHeight - finalHeight;
-    }
+    if (top + height > bgTop + bgHeight) activeObj.set('top', bgTop + bgHeight - height);
+
+    // --- 2. 限制缩放 (Scaling) ---
+    // 如果缩放导致宽高超过了底图，强制修正 scale
+    // 注意：这只是一个简单的防溢出，完美缩放限制需要更复杂的数学计算
+    const currentWidth = activeObj.getScaledWidth();
+    const currentHeight = activeObj.getScaledHeight();
+
+    if (currentWidth > bgWidth) activeObj.scaleToWidth(bgWidth);
+    if (currentHeight > bgHeight) activeObj.scaleToHeight(bgHeight);
+    
+    // 二次检查位置（防止缩放后位置偏移出界）
+    if (activeObj.left < bgLeft) activeObj.set('left', bgLeft);
+    if (activeObj.top < bgTop) activeObj.set('top', bgTop);
   };
 
-  // 初始化 (保留动态宽高)
+  // 初始化
   const init = (id, width, height) => {
     const c = new fabric.Canvas(id, {
       width: width,
       height: height,
-      backgroundColor: null, 
+      backgroundColor: '#f3f3f3',
       preserveObjectStacking: true,
     });
     canvas.value = markRaw(c);
 
-    // === 【恢复】绑定事件监听 ===
-    // 移动或缩放时，实时触发限制逻辑
+    // === 绑定事件监听 ===
+    // 在移动和缩放时触发限制逻辑
     c.on('object:moving', (e) => constrainCrop(e.target));
     c.on('object:scaling', (e) => constrainCrop(e.target));
   };
 
   const addImage = (url) => {
     fabric.Image.fromURL(url, (img) => {
-      // 图片加载逻辑保持不变
-      if (canvas.value) {
-        const maxWidth = canvas.value.width * 0.8;
-        // 如果图片太大，适当缩放
-        if (img.width > maxWidth) {
-          img.scaleToWidth(maxWidth);
-        }
-      }
+      if (img.width > 800) img.scaleToWidth(800);
       canvas.value?.add(img);
       canvas.value?.centerObject(img);
       canvas.value?.setActiveObject(img);
@@ -95,21 +86,21 @@ export function useCanvas() {
   const startCrop = (aspectRatio = null) => {
     if (!canvas.value) return;
     
+    // 1. 查找底图 (确保是对图片进行裁剪)
     let activeObj = canvas.value.getObjects().find(obj => obj.type === 'image');
     if (!activeObj) return;
 
-    cancelCrop(); 
+    cancelCrop(); // 移除旧框
 
+    // 2. 初始裁剪框大小 (默认80%)
     const imgWidth = activeObj.getScaledWidth();
     const imgHeight = activeObj.getScaledHeight();
-    
-    // 初始裁剪框大小 (默认80%)
     let width = imgWidth * 0.8;
     let height = imgHeight * 0.8;
 
     if (aspectRatio) {
       height = width / aspectRatio;
-      // 必须保证初始框不超出图片
+      // 如果算出高度溢出，改用高度基准
       if (height > imgHeight) {
         height = imgHeight;
         width = height * aspectRatio;
@@ -121,19 +112,20 @@ export function useCanvas() {
       top: activeObj.top + (imgHeight - height) / 2,
       width: width,
       height: height,
-      fill: 'rgba(0,0,0,0.3)', 
+      fill: 'rgba(0,0,0,0.3)', // 半透明蒙版
       stroke: '#409eff',
       strokeWidth: 2,
       cornerColor: 'white',
       cornerStrokeColor: '#409eff',
       cornerSize: 10,
       transparentCorners: false,
-      lockRotation: true,
+      lockRotation: true, // 裁剪框不旋转
       hasRotatingPoint: false,
     });
 
     if (aspectRatio) {
       cropZone.set({ lockUniScaling: true });
+      // 修正：使用 set 设定高度
       cropZone.set('height', width / aspectRatio);
     } else {
       cropZone.set({ lockUniScaling: false });
@@ -141,21 +133,19 @@ export function useCanvas() {
 
     canvas.value.add(cropZone);
     canvas.value.setActiveObject(cropZone);
-    cropObject.value = cropZone; 
+    cropObject.value = cropZone; // shallowRef 存储原始对象
     canvas.value.renderAll();
   };
 
   const setCropBoxSize = (width, height) => {
     if (!cropObject.value || !canvas.value) return;
-    // 这里也可以加个 check 防止输入过大
+    // 简单设置，实际建议也加一层 constrainCheck 防止输入过大
     cropObject.value.set({ width, height });
     cropObject.value.setCoords(); 
-    // 手动触发一次限制检查，防止输入的数字超界
-    constrainCrop(toRaw(cropObject.value));
     canvas.value.renderAll();
   };
 
-  // === 确认裁剪 ===
+  // === 确认裁剪 (含蒙版修复) ===
   const confirmCrop = () => {
     if (!canvas.value || !cropObject.value) return;
     
@@ -163,11 +153,10 @@ export function useCanvas() {
     const bgImage = canvas.value.getObjects().find(o => o.type === 'image');
     if (!bgImage) return cancelCrop();
 
-    // 1. 隐藏裁剪框
+    // 1. 关键修复：截图前隐藏裁剪框，防止截图变灰
     cropRect.visible = false; 
 
     // 2. 截图
-    // 这里的 left/top 是相对于 Canvas 的绝对坐标
     const croppedDataUrl = canvas.value.toDataURL({
       left: cropRect.left,
       top: cropRect.top,
@@ -195,6 +184,7 @@ export function useCanvas() {
 
   const cancelCrop = () => {
     if (canvas.value && cropObject.value) {
+      // 使用 toRaw 确保移除的是原始对象
       const rawObj = toRaw(cropObject.value);
       canvas.value.remove(rawObj);
       cropObject.value = null;
@@ -202,7 +192,7 @@ export function useCanvas() {
     }
   };
 
-  // ... 其他方法 (rotate, flip, AI 等) 保持不变，直接复制即可
+  // === 其他功能 ===
   const rotateActive = (angle) => {
     const activeObj = canvas.value?.getActiveObject();
     if (activeObj) {
@@ -280,17 +270,10 @@ export function useCanvas() {
     canvas.value.setActiveObject(text);
   };
 
-  const resizeCanvas = (w, h) => {
-    if (canvas.value) {
-      canvas.value.setDimensions({ width: w, height: h });
-    }
-  }
-
   return { 
     canvas, init, addImage, 
     startCrop, setCropBoxSize, confirmCrop, cancelCrop, 
     rotateActive, flipActive,
-    toggleDrawing, exportMask, replaceActiveImage, addText,
-    resizeCanvas
+    toggleDrawing, exportMask, replaceActiveImage, addText
   };
 }

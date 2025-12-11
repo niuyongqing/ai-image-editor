@@ -1,6 +1,6 @@
 <template>
   <div class="workspace-container">
-    <div class="canvas-center">
+    <div class="canvas-center" ref="canvasContainer">
       <canvas id="c"></canvas>
     </div>
     
@@ -13,16 +13,20 @@
 </template>
 
 <script setup>
-import { onMounted, inject } from 'vue';
+import { onMounted, inject, ref } from 'vue';
 import { Plus, Minus } from '@element-plus/icons-vue';
 
 // === 核心修复：接收注入 ===
 const canvasAPI = inject('canvasAPI');
+const canvasContainer = ref(null);
 
 onMounted(() => {
   // 等 DOM 渲染好 <canvas id="c"> 后，通知父组件初始化 Fabric
   if (canvasAPI && canvasAPI.init) {
-    canvasAPI.init('c');
+    const width = canvasContainer.value.clientWidth || 1900;
+    const height = canvasContainer.value.clientHeight || 1000;
+    // 传递容器元素给 canvasAPI.init
+    canvasAPI.init('c', width, height);
   } else {
     console.error('CanvasAPI not found. Make sure EditorLayout provides it.');
   }
