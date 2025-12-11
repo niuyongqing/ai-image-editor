@@ -1,0 +1,1 @@
+app.enableCors(); // 允许所有跨域
