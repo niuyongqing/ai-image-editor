@@ -169,21 +169,28 @@ export function useCanvas() {
   };
 
   const addImage = (url) => {
-    fabric.Image.fromURL(
-      url,
-      (img) => {
-      historyProcessing = true;
-        if (img.width > 800) img.scaleToWidth(800);
-        canvas.value?.add(img);
-        canvas.value?.centerObject(img);
-        canvas.value?.setActiveObject(img);
-      historyProcessing = false;
-      saveHistory();
-      },
+    fabric.Image.fromURL(url, (img) => {
+      // [优化] 移除或调大这个限制。
+      // 如果是为了让大图能完整显示在画布里，建议使用 zoom (缩放画布) 而不是 scale (缩放图片对象)。
+      // 这里为了简单，我们先调大限制，或者根据画布容器大小动态缩放
+      
+      // 方案 A：简单调大限制
+      // if (img.width > 2048) img.scaleToWidth(2048); 
+      
+      // 方案 B (推荐)：自适应画布大小，但记录 scale，导出时可恢复
+      const canvasWidth = canvas.value.width;
+      const canvasHeight = canvas.value.height;
+      
+      // 如果图片比画布还大，就缩小它以适应屏幕显示
+      if (img.width > canvasWidth || img.height > canvasHeight) {
+          const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height) * 0.8; 
+          img.scale(scale);
+      }
 
-      { crossOrigin: "anonymous" }
-    );
-
+      canvas.value?.add(img);
+      canvas.value?.centerObject(img);
+      canvas.value?.setActiveObject(img);
+    }, { crossOrigin: 'anonymous' });
   };
 
   // === 裁剪模式 ===
