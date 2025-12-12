@@ -30,12 +30,14 @@ const {
   setCropBoxSize,
   canvas, 
   addText,
-  // === 新增以下这5个方法 ===
   startCrop, 
   confirmCrop, 
   cancelCrop, 
   rotateActive, 
-  flipActive
+  flipActive,
+  undo,
+  redo,
+  saveHistory 
 } = useCanvas();
 
 // 组装 API 对象
@@ -53,8 +55,9 @@ const api = {
   cancelCrop, 
   rotateActive, 
   flipActive,
-  
-  // 原有的辅助方法
+  undo,
+  redo,
+  saveHistory,
   addText: (text) => addText(text),
   exportImg: () => canvas.value?.toDataURL({ format: 'png' }),
   getActiveImgSrc: () => canvas.value?.getActiveObject()?.getSrc(),
