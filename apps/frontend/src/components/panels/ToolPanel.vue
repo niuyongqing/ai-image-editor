@@ -1,37 +1,30 @@
 <template>
   <div class="tool-panel">
-    <PanelAdjust v-if="store.activeTool === 'adjust'" />
-    
-    <PanelText v-else-if="store.activeTool === 'text'" />
-    
-    <div v-else class="empty-panel">
-      <div class="empty-icon">
-        <el-icon :size="40"><WarnTriangleFilled /></el-icon>
-      </div>
-      <p class="empty-text">“{{ currentToolName }}”功能正在开发中</p>
-    </div>
+    <component :is="currentModule" />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import { useEditorStore } from '../../stores/editorStore';
-import { WarnTriangleFilled } from '@element-plus/icons-vue';
-import PanelAdjust from './PanelAdjust.vue';
-import PanelText from './PanelText.vue';
 
 const store = useEditorStore();
 
-const toolNames = {
-  draw: '绘制',
-  border: '边框',
-  material: '素材',
-  watermark: '水印',
-  puzzle: '拼图',
-  ai: 'AI工具'
+// 动态映射表：将 activeTool 的 ID 映射到组件路径
+const modules = {
+  adjust: defineAsyncComponent(() => import('../modules/adjust/index.vue')),
+  draw: defineAsyncComponent(() => import('../modules/draw/index.vue')),
+  text: defineAsyncComponent(() => import('../modules/text/index.vue')),
+  border: defineAsyncComponent(() => import('../modules/border/index.vue')),
+  material: defineAsyncComponent(() => import('../modules/material/index.vue')),
+  watermark: defineAsyncComponent(() => import('../modules/watermark/index.vue')),
+  puzzle: defineAsyncComponent(() => import('../modules/puzzle/index.vue')),
+  ai: defineAsyncComponent(() => import('../modules/ai/index.vue')),
 };
 
-const currentToolName = computed(() => toolNames[store.activeTool] || '未知');
+const currentModule = computed(() => {
+  return modules[store.activeTool] || modules['adjust']; // 默认显示 adjust
+});
 </script>
 
 <style scoped>
@@ -40,21 +33,5 @@ const currentToolName = computed(() => toolNames[store.activeTool] || '未知');
   border-right: 1px solid #e4e7ed;
   height: 100%;
   overflow-y: auto;
-}
-
-.empty-panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: #909399;
-}
-.empty-icon {
-  margin-bottom: 10px;
-  color: #e4e7ed;
-}
-.empty-text {
-  font-size: 14px;
 }
 </style>

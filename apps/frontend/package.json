@@ -1,10 +1,11 @@
 {
-  "name": "ai-admin-vue",
+  "name": "image-editor",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host --port 3332",
+    "dev:port": "vite --host --port 3666",
     "build": "vite build",
     "preview": "vite preview"
   },

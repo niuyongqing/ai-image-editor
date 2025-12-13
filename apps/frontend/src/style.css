@@ -76,3 +76,112 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* 列表容器 */
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 工具项外层容器 */
+.tool-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 核心条目样式 (Header) */
+.tool-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 50px;
+  background-color: #f5f7fa;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #333;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.tool-item:hover {
+  background-color: #e6e8eb;
+  transform: translateY(-1px);
+}
+
+/* 展开状态 */
+.tool-item.is-expanded {
+  background-color: #ecf5ff;
+  color: #409eff;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* 内部左侧布局 (图标+文字) */
+.tool-item .left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tool-item .el-icon {
+  font-size: 18px;
+}
+
+/* 内部右侧布局 (箭头/状态) */
+.tool-item .right-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+}
+
+/* 箭头旋转动画 */
+.tool-item .arrow {
+  font-size: 14px;
+  color: #909399;
+  transition: transform 0.3s;
+}
+
+.tool-item.is-expanded .arrow {
+  transform: rotate(90deg);
+  color: #409eff;
+}
+
+/* 展开的内容区域容器 */
+.tool-content {
+  background-color: #fff;
+  padding: 16px;
+  border: 1px solid #eee;
+  border-top: none;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  animation: slideDown 0.2s ease-out;
+}
+
+/* 通用动画 */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 通用状态点 (消除笔等使用) */
+.status-dot { 
+  width: 8px; 
+  height: 8px; 
+  background-color: #409eff; 
+  border-radius: 50%; 
+}
+
+/* 通用 Loading (一键抠图等使用) */
+.is-loading {
+  animation: rotating 2s linear infinite;
+  color: #409eff;
+}
+@keyframes rotating {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -43,13 +43,13 @@ export function useCanvas() {
   const updateStoreHistory = () => {
     store.setHistoryState(
       historyIndex > 0, // canUndo
-      historyIndex < history.length - 1 // canRedo
+      historyIndex > 0  // canRedo
     );
   };
 
   // === 2. 撤销 ===
   const undo = () => {
-    if (historyIndex <= 0) return; // 初始状态在 index 0，不能再退了
+    if (historyIndex <= 0 || historyProcessing) return;
 // [新增] 撤销时强制退出裁剪模式，防止 bug
     if (cropObject.value) {
         cancelCrop(); 
@@ -67,19 +67,19 @@ export function useCanvas() {
 
   // === 3. 重做 ===
   const redo = () => {
-    if (historyIndex >= history.length - 1) return;
+    if (historyIndex === 0 || historyProcessing) return;
     // [新增] 重做时也强制退出裁剪模式
     if (cropObject.value) {
         cancelCrop();
     }
     historyProcessing = true; // 加锁
-    historyIndex++;
+    historyIndex = 0; 
 
     const content = history[historyIndex];
     canvas.value.loadFromJSON(content, () => {
       canvas.value.renderAll();
       historyProcessing = false; // 解锁
-      updateStoreHistory();
+      updateStoreHistory(); // 更新按钮状态
     });
   };
 
@@ -186,11 +186,38 @@ export function useCanvas() {
           const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height) * 0.8; 
           img.scale(scale);
       }
-
+      historyProcessing = true;
       canvas.value?.add(img);
       canvas.value?.centerObject(img);
       canvas.value?.setActiveObject(img);
+      historyProcessing = false;
+      saveHistory();
     }, { crossOrigin: 'anonymous' });
+  };
+
+  const initImage = (url) => {
+    if (!canvas.value) return;
+
+    // 1. 上锁，防止 clear() 触发 object:removed 保存空画布的历史记录
+    historyProcessing = true;
+
+    // 2. 清空画布
+    canvas.value.clear();
+    // 恢复背景色（clear 会把背景色也清掉）
+    canvas.value.setBackgroundColor("#f3f3f3", () => {
+      canvas.value.renderAll();
+    });
+
+    // 3. 解锁
+    historyProcessing = false;
+
+    // 4. 重置历史记录栈
+    history.length = 0;
+    historyIndex = -1;
+    updateStoreHistory();
+
+    // 5. 调用 addImage 加载新图 (addImage 内部会自动处理居中和保存第一条历史记录)
+    addImage(url);
   };
 
   // === 裁剪模式 ===
@@ -433,6 +460,7 @@ export function useCanvas() {
   return {
     canvas,
     init,
+    initImage,
     addImage,
     startCrop,
     setCropBoxSize,

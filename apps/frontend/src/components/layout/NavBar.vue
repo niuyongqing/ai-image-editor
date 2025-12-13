@@ -2,6 +2,20 @@
   <div class="navbar">
     <div class="logo">大秘美图</div>
     <div class="actions">
+      <input 
+        type="file" 
+        ref="fileInput" 
+        @change="onFileSelected" 
+        style="display:none" 
+        accept="image/*" 
+      />
+      <el-button size="small" @click="handleUpload">
+        <el-icon style="margin-right: 4px"><UploadFilled /></el-icon>
+        打开图片
+      </el-button>
+
+      <el-divider direction="vertical" />
+
       <el-button 
         size="small" 
         @click="handleUndo" 
@@ -24,13 +38,34 @@
 </template>
 
 <script setup>
-import { inject } from 'vue';
+import { inject, ref } from 'vue';
 import { saveAs } from 'file-saver';
-import { useEditorStore } from '../../stores/editorStore';
+import { useEditorStore } from '@/stores/editorStore';
 import { ElMessage } from 'element-plus';
-
+import { UploadFilled } from '@element-plus/icons-vue';
 const store = useEditorStore();
 const canvasAPI = inject('canvasAPI');
+
+// === 新增：文件上传逻辑 ===
+const fileInput = ref(null);
+
+const handleUpload = () => {
+  fileInput.value.click();
+};
+
+const onFileSelected = (e) => {
+  const file = e.target.files?.[0];
+  if (file) {
+    if (!canvasAPI) {
+      ElMessage.error('画布尚未初始化');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    canvasAPI.initImage(url);
+    // 清空 value，允许重复选择同一张图片
+    e.target.value = '';
+  }
+};
 
 const handleSave = () => {
   if (!canvasAPI) return;
